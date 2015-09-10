@@ -4,7 +4,7 @@ if [ -f ~/.pooler ]; then
   source ~/.pooler
 fi
 
-function vmpool_authorize {
+function vmpooler_authorize {
   local user="${1:-UNDEFINED}"
   if [[ ${host} == UNDEFINED ]]; then
     echo "please provide the LDAP name to request a token for" >&2
@@ -20,7 +20,7 @@ function vmpool_authorize {
 }
 
 
-function vmpool_delete {
+function vmpooler_delete {
   local host="${1:-UNDEFINED}"
 
   if [[ ${host} == UNDEFINED ]]; then
@@ -35,7 +35,7 @@ function vmpool_delete {
   return $?
 }
 
-function vmpool_checkout {
+function vmpooler_checkout {
   local platform_tag="${1:-UNDEFINED}"
 
   if [[ ${platform_tag} == UNDEFINED ]]; then
@@ -51,7 +51,7 @@ function vmpool_checkout {
   return $?
 }
 
-function vmpool_lifespan {
+function vmpooler_reserve {
   local host="${1:-UNDEFINED}"
   local lifespan="${2:-UNDEFINED}"
 
@@ -75,5 +75,5 @@ function vmpool_lifespan {
 }
 
 ssh_options='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa'
-alias vmpool_ssh="ssh ${ssh_options}"
-alias vmpool_scp="scp ${ssh_options}"
+alias vmpooler_ssh="ssh ${ssh_options}"
+alias vmpooler_scp="scp ${ssh_options}"

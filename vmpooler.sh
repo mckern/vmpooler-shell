@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Requires `curl`, `basename` and `jq` to function
+
 __config_dir="${HOME}/.vmpooler"
 __config="${__config_dir}/config"
 __lease_dir="${__config_dir}/leases"
@@ -11,6 +13,8 @@ mkdir -p "${__lease_dir}"
 if [ -f "${__config}" ]; then
   source "${__config}"
 fi
+
+### Utilities
 
 function echo_parse_vm_hostname {
   local json="${1:-UNDEFINED}"
@@ -84,6 +88,31 @@ function create_vm_lease {
   return $?
 }
 
+function destroy_vm_lease {
+  local lease="${1:-UNDEFINED}"
+  local lease_path
+
+  if [[ ${lease} == UNDEFINED ]]; then
+    echo "please provide a lease name to destroy" >&2
+    return 1
+  fi
+
+  if [ ! -d "${__lease_dir}" ]; then
+    echo "cannot find directory to remove lease from" >&2
+    return 1
+  fi
+
+  lease_path="$(echo_lease_path "${lease}")"
+  if [ ! -f "${lease_path}" ]; then
+    echo "lease '${lease}' does not exist" >&2
+    return 1
+  fi
+
+  echo "destroying lease ${lease}"
+  rm -f "${lease_path}"
+  return $?
+}
+
 function test_vmpooler_token {
   if [ -z "${VMPOOLER_TOKEN}" ]; then
     echo "no VM Pooler token found" >&2
@@ -92,9 +121,11 @@ function test_vmpooler_token {
   return 0
 }
 
+### Pooler functions
+
 function vmpooler_checkout {
   local platform_tag="${1:-UNDEFINED}"
-  local output
+  local json_output
   local return_value
   local vm_hostname
   local lease_path
@@ -109,24 +140,68 @@ function vmpooler_checkout {
     return 1
   fi
 
-  output="$(curl --insecure --silent --request POST --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" --url "${VMPOOLER_URL}/vm/${platform_tag}")"
+  json_output="$(curl --insecure --silent --request POST --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" --url "${VMPOOLER_URL}/vm/${platform_tag}")"
   return_value=$?
 
   if [[ $return_value == 0 ]]; then
-    vm_hostname="$(echo_parse_vm_hostname "${output}" "${platform_tag}")"
-    if [[ $? == 0 ]]; then
-      echo "checked out ${vm_hostname} (${platform_tag})"
-      create_vm_lease "${vm_hostname}"
+    vm_hostname="$(echo_parse_vm_hostname "${json_output}" "${platform_tag}")"
+    return_value=$?
+  else
+    echo "unable to check out instance of '${platform_tag}' host" >&2
+    return 1
+  fi
 
-      if [[ $? == 0 ]]; then
-        lease_path="$(echo_lease_path "${vm_hostname}")"
-        echo_parse_vm_domainname "${output}" > "${lease_path}"
-        return_value=$?
-      fi
-    fi
+  if [[ $return_value == 0 ]]; then
+    echo "checked out ${vm_hostname} (${platform_tag})"
+    create_vm_lease "${vm_hostname}"
+    return_value=$?
+  else
+    echo "unable to parse hostname for new instance of '${platform_tag}' host" >&2
+    return 1
+  fi
+
+  if [[ $return_value == 0 ]]; then
+    lease_path="$(echo_lease_path "${vm_hostname}")"
+    echo_parse_vm_domainname "${json_output}" > "${lease_path}"
+    return_value=$?
+  else
+    echo "unable to write local lease for host '${vm_hostname}'" >&2
+    return 1
   fi
 
   return "${return_value}"
+}
+
+function vmpooler_destroy {
+  local vm_hostname="${1:-UNDEFINED}"
+  local return_value
+  local lease_path
+
+  if [[ ${vm_hostname} == UNDEFINED ]]; then
+    echo "please provide the name of a VM Pooler host to destroy" >&2
+  fi
+
+  if ! test_vmpooler_token; then
+    echo "cannot find VM Pooler token, cannot destroy pooler VM"
+    return 1
+  fi
+
+  curl \
+    --insecure \
+    --silent \
+    --request DELETE \
+    --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" \
+    --url "${VMPOOLER_URL}/vm/${vm_hostname}" &> /dev/null
+
+  return_value=$?
+
+  if [[ $return_value != 0 ]]; then
+    echo "unable to confirm destruction of host '${vm_hostname}'" >&2
+    return 1
+  fi
+
+  destroy_vm_lease "${vm_hostname}"
+  return $?
 }
 
 function vmpooler_leases {
@@ -138,6 +213,8 @@ function vmpooler_leases {
   find "${__lease_dir}" -type f -print0 | xargs -0 -n1 basename
   return 0
 }
+
+### Still in progress
 
 function vmpooler_authorize {
   local user="${1:-UNDEFINED}"
@@ -151,22 +228,6 @@ function vmpooler_authorize {
     --request POST \
     --user "${user}" \
     --url "${VMPOOLER_URL}/token"
-  return $?
-}
-
-
-function vmpooler_delete {
-  local host="${1:-UNDEFINED}"
-
-  if [[ ${host} == UNDEFINED ]]; then
-    echo "please provide the name of a VM Pooler host to delete" >&2
-  fi
-
-  curl \
-    --insecure \
-    --request DELETE \
-    --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" \
-    --url "${VMPOOLER_URL}/vm/${host}"
   return $?
 }
 
@@ -217,3 +278,28 @@ function vmpooler_lifespan {
 ssh_options='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa'
 alias vmpooler_ssh="ssh ${ssh_options}"
 alias vmpooler_scp="scp ${ssh_options}"
+
+function vmpooler {
+  local action="${1:-UNDEFINED}"
+  shift
+
+  case "${action}" in
+    checkout)
+      vmpooler_checkout "${1}"
+    ;;
+    destroy)
+      vmpooler_destroy "${1}"
+    ;;
+    status)
+      vmpooler_status "${1}"
+    ;;
+    lifespan)
+      vmpooler_lifespan "${1}"
+    ;;
+    leases)
+      vmpooler_leases
+    ;;
+    *) echo "${@}" ;;
+  esac
+  return $?
+}

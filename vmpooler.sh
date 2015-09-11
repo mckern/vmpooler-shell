@@ -2,17 +2,16 @@
 
 # Requires `curl`, `basename` and `jq` to function
 
-__config_dir="${HOME}/.vmpooler"
-__config="${__config_dir}/config"
-__lease_dir="${__config_dir}/leases"
+__config_file_dir="${HOME}/.vmpooler"
+__config_file="${__config_file_dir}/config.json"
+__lease_dir="${__config_file_dir}/leases"
+
+# Respect these environment variables
+VMPOOLER_TOKEN="${VMPOOLER_TOKEN:-UNDEFINED}"
+VMPOOLER_URL="${VMPOOLER_URL:-https://vmpooler.delivery.puppetlabs.net}"
 
 # Create a lease directory
 mkdir -p "${__lease_dir}"
-
-# Source an existing VM Pooler configuration
-if [ -f "${__config}" ]; then
-  source "${__config}"
-fi
 
 ### Utilities
 
@@ -43,6 +42,19 @@ function echo_parse_vm_domainname {
   fi
 
   echo "${json[@]}" | jq --exit-status --raw-output  ".domain | select(. == null | not)"
+  return $?
+}
+
+function echo_parse_vm_pooler_token {
+  local json="${1:-UNDEFINED}"
+  local token
+
+  if [[ ${json} == UNDEFINED ]]; then
+    echo "please provide JSON output to parse" >&2
+    return 1
+  fi
+
+  echo "${json[@]}" | jq --exit-status --raw-output  ".token | select(. == null | not)"
   return $?
 }
 
@@ -83,9 +95,72 @@ function create_vm_lease {
     return 1
   fi
 
-  echo "writing lease ${lease}"
   touch "${lease_path}"
   return $?
+}
+
+function write_vm_lease_details {
+  local lease_path="${1:-UNDEFINED}"
+  local platform="${2:-UNDEFINED}"
+  local domain="${3:-UNDEFINED}"
+
+  if [[ ${lease} == UNDEFINED ]]; then
+    echo "please provide a lease path to write to" >&2
+    return 1
+  fi
+
+  if [[ ${platform} == UNDEFINED ]]; then
+    echo "please provide a platform tag for $(basename "${lease_path}")" >&2
+    return 1
+  fi
+
+  if [[ ${domain} == UNDEFINED ]]; then
+    echo "please provide a DNS domain for $(basename "${lease_path}")" >&2
+    return 1
+  fi
+
+  # Write out platform data to the lease
+  echo "${platform_tag}" >> "${lease_path}"
+  if [[ $? != 0 ]]; then
+    echo "unable to write platform tag to lease" >&2
+    return 1
+  fi
+
+  # Write out dns domain data to the lease
+  echo "${domain}" >> "${lease_path}"
+  if [[ $? != 0 ]]; then
+    echo "unable to write dns domain to lease" >&2
+    return 1
+  fi
+  return 0
+}
+
+function write_vmpooler_token_to_file {
+  local token="${1:-UNDEFINED}"
+  local new_config
+
+  if [[ $token == UNDEFINED ]]; then
+    echo "please provide a VM Pooler token" >&2
+    return 1
+  fi
+
+  if [[ ! -w ${__config_file} ]]; then
+    echo "cannot write to ${__config_file}" >&2
+    return 1
+  fi
+
+  new_config="$(jq --exit-status --raw-output ". + { \"vmpooler_token\" : \"${token}\" }" "${__config_file}" 2>/dev/null)"
+  if [[ $? != 0 ]]; then
+    echo "unable to properly parse and update config file" >&2
+  fi
+
+  echo "${new_config}" > "${__config_file}"
+  if [[ $? != 0 ]]; then
+    echo "unable to write new VM Pooler token to config file" >&2
+    return 1
+  fi
+
+  return 0
 }
 
 function destroy_vm_lease {
@@ -114,7 +189,7 @@ function destroy_vm_lease {
 }
 
 function test_vmpooler_token {
-  if [ -z "${VMPOOLER_TOKEN}" ]; then
+  if [[ -z $VMPOOLER_TOKEN || $VMPOOLER_TOKEN == UNDEFINED ]]; then
     echo "no VM Pooler token found" >&2
     return 1
   fi
@@ -126,9 +201,9 @@ function test_vmpooler_token {
 function vmpooler_checkout {
   local platform_tag="${1:-UNDEFINED}"
   local json_output
-  local return_value
   local vm_hostname
   local lease_path
+  local domain
 
   if [[ ${platform_tag} == UNDEFINED ]]; then
     echo "please provide a platform tag to checkout" >&2
@@ -141,40 +216,42 @@ function vmpooler_checkout {
   fi
 
   json_output="$(curl --insecure --silent --request POST --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" --url "${VMPOOLER_URL}/vm/${platform_tag}")"
-  return_value=$?
-
-  if [[ $return_value == 0 ]]; then
-    vm_hostname="$(echo_parse_vm_hostname "${json_output}" "${platform_tag}")"
-    return_value=$?
-  else
+  if [[ $? != 0 ]]; then
     echo "unable to check out instance of '${platform_tag}' host" >&2
     return 1
   fi
 
-  if [[ $return_value == 0 ]]; then
-    echo "checked out ${vm_hostname} (${platform_tag})"
-    create_vm_lease "${vm_hostname}"
-    return_value=$?
-  else
+  vm_hostname="$(echo_parse_vm_hostname "${json_output}" "${platform_tag}")"
+  if [[ $? != 0 ]]; then
     echo "unable to parse hostname for new instance of '${platform_tag}' host" >&2
     return 1
   fi
 
-  if [[ $return_value == 0 ]]; then
-    lease_path="$(echo_lease_path "${vm_hostname}")"
-    echo_parse_vm_domainname "${json_output}" > "${lease_path}"
-    return_value=$?
-  else
+  domain="$(echo_parse_vm_domainname "${json_output}")"
+  if [[ $? != 0 ]]; then
+    echo "unable to parse dns domain for new instance of '${platform_tag}' host" >&2
+    return 1
+  fi
+
+  # Save the VM Host details to a lease file
+  echo "checked out ${vm_hostname} (${platform_tag})"
+  create_vm_lease "${vm_hostname}"
+  if [[ $? != 0 ]]; then
     echo "unable to write local lease for host '${vm_hostname}'" >&2
     return 1
   fi
 
-  return "${return_value}"
+  write_vm_lease_details "${lease_path}" "${platform_tag}" "${domain}"
+  if [[ $? != 0 ]]; then
+    echo "unable to write all VM Host lease details to lease file" >&2
+    return 1
+  fi
+
+  return 0
 }
 
 function vmpooler_destroy {
   local vm_hostname="${1:-UNDEFINED}"
-  local return_value
   local lease_path
 
   if [[ ${vm_hostname} == UNDEFINED ]]; then
@@ -193,15 +270,18 @@ function vmpooler_destroy {
     --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" \
     --url "${VMPOOLER_URL}/vm/${vm_hostname}" &> /dev/null
 
-  return_value=$?
-
-  if [[ $return_value != 0 ]]; then
+  if [[ $? != 0 ]]; then
     echo "unable to confirm destruction of host '${vm_hostname}'" >&2
     return 1
   fi
 
   destroy_vm_lease "${vm_hostname}"
-  return $?
+  if [[ $? != 0 ]]; then
+    echo "unable to destroy lease for host '${vm_hostname}'" >&2
+    return 1
+  fi
+
+  return 0
 }
 
 function vmpooler_leases {
@@ -210,26 +290,47 @@ function vmpooler_leases {
     return 1
   fi
 
-  find "${__lease_dir}" -type f -print0 | xargs -0 -n1 basename
+  while read -d $'\0' -r lease; do
+    lease_name="$(basename "${lease}")"
+    platform_tag="$(head -n1 "${lease}")"
+    echo "${lease_name} (${platform_tag})"
+  done < <(find "${__lease_dir}" -type f -print0)
+
   return 0
 }
 
-### Still in progress
-
 function vmpooler_authorize {
   local user="${1:-UNDEFINED}"
-  if [[ ${host} == UNDEFINED ]]; then
+  local json_output
+  local token
+
+  if [[ ${user} == UNDEFINED ]]; then
     echo "please provide the LDAP name to request a token for" >&2
     return 1
   fi
 
-  curl \
-    --insecure \
-    --request POST \
-    --user "${user}" \
-    --url "${VMPOOLER_URL}/token"
-  return $?
+  json_output="$(curl --silent --insecure --request POST --user "${user}" --url "${VMPOOLER_URL}/token")"
+  if [[ $? != 0 ]]; then
+    echo "unable to authorize '${user}' or retrieve a new token" >&2
+    return 1
+  fi
+
+  token="$(echo_parse_vm_pooler_token "${json_output}")"
+  if [[ $? != 0 ]]; then
+    echo "unable to parse token output" >&2
+    return 1
+  fi
+
+  write_vmpooler_token_to_file "${token}"
+  if [[ $? != 0 ]]; then
+    echo "unable to write new token value to disk" >&2
+    return 1
+  fi
+
+  return 0
 }
+
+### Still in progress
 
 function vmpooler_status {
   local host="${1:-UNDEFINED}"
@@ -299,7 +400,12 @@ function vmpooler {
     leases)
       vmpooler_leases
     ;;
-    *) echo "${@}" ;;
+    authorize)
+      vmpooler_authorize "${1}"
+    ;;
+    *) echo ${@} ;;
   esac
   return $?
 }
+
+vmpooler "${@}"

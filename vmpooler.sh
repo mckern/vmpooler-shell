@@ -1,5 +1,15 @@
 #!/bin/bash
 
+if [[ ${DEBUG} ]]; then
+  set -x
+fi
+
+function cleanup {
+  set +x
+}
+
+trap cleanup EXIT
+
 # Requires `curl`, `basename` and `jq` to function
 
 __config_file_dir="${HOME}/.vmpooler"
@@ -8,7 +18,7 @@ __lease_dir="${__config_file_dir}/leases"
 
 # Respect these environment variables
 VMPOOLER_TOKEN="${VMPOOLER_TOKEN:-UNDEFINED}"
-VMPOOLER_URL="${VMPOOLER_URL:-https://vmpooler.delivery.puppetlabs.net}"
+VMPOOLER_URL="${VMPOOLER_URL:-UNDEFINED}"
 
 # Create a lease directory
 mkdir -p "${__lease_dir}"
@@ -75,6 +85,27 @@ function echo_lease_path {
   return $?
 }
 
+function parse_config {
+  if [[ ! -f ${__config_file} ]]; then
+    echo "cannot find config file ${__config_file}; unable to parse a nonexistant or unreadable file" >&2
+    return 1
+  fi
+
+  if [[ ${VMPOOLER_TOKEN} == UNDEFINED ]]; then
+    VMPOOLER_TOKEN="$(jq --exit-status --raw-output ".vmpooler_token"  "${__config_file}")"
+  else
+    echo "using environment variable VMPOOLER_TOKEN for access token"
+  fi
+
+  if [[ ${VMPOOLER_URL} == UNDEFINED ]]; then
+    VMPOOLER_URL="$(jq --exit-status --raw-output ".vmpooler_url"  "${__config_file}")"
+  else
+    echo "using environment variable VMPOOLER_URL to connect to VM Pooler API"
+  fi
+
+  return $?
+}
+
 function create_vm_lease {
   local lease="${1:-UNDEFINED}"
   local lease_path
@@ -100,22 +131,30 @@ function create_vm_lease {
 }
 
 function write_vm_lease_details {
-  local lease_path="${1:-UNDEFINED}"
+  local vm_hostname="${1:-UNDEFINED}"
   local platform="${2:-UNDEFINED}"
   local domain="${3:-UNDEFINED}"
+  local lease_path
 
-  if [[ ${lease} == UNDEFINED ]]; then
-    echo "please provide a lease path to write to" >&2
+  if [[ ${vm_hostname} == UNDEFINED ]]; then
+    echo "please provide a VM hostname" >&2
     return 1
   fi
 
   if [[ ${platform} == UNDEFINED ]]; then
-    echo "please provide a platform tag for $(basename "${lease_path}")" >&2
+    echo "please provide a platform tag for $(basename "${vm_hostname}")" >&2
     return 1
   fi
 
   if [[ ${domain} == UNDEFINED ]]; then
-    echo "please provide a DNS domain for $(basename "${lease_path}")" >&2
+    echo "please provide a DNS domain for $(basename "${vm_hostname}")" >&2
+    return 1
+  fi
+
+  lease_path="$(echo_lease_path "${vm_hostname}")"
+
+  if [[ ! -e "${lease_path}" ]]; then
+    echo "lease '${lease}' does not exist; cannot write details to it" >&2
     return 1
   fi
 
@@ -241,7 +280,7 @@ function vmpooler_checkout {
     return 1
   fi
 
-  write_vm_lease_details "${lease_path}" "${platform_tag}" "${domain}"
+  write_vm_lease_details "${vm_hostname}" "${platform_tag}" "${domain}"
   if [[ $? != 0 ]]; then
     echo "unable to write all VM Host lease details to lease file" >&2
     return 1
@@ -376,13 +415,19 @@ function vmpooler_lifespan {
   return $?
 }
 
-ssh_options='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa'
-alias vmpooler_ssh="ssh ${ssh_options}"
-alias vmpooler_scp="scp ${ssh_options}"
+function vmpooler_ssh {
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
+}
+
+function vmpooler_scp {
+  scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
+}
 
 function vmpooler {
   local action="${1:-UNDEFINED}"
   shift
+
+  parse_config
 
   case "${action}" in
     checkout)
@@ -395,13 +440,19 @@ function vmpooler {
       vmpooler_status "${1}"
     ;;
     lifespan)
-      vmpooler_lifespan "${1}"
+      vmpooler_lifespan ${@}
     ;;
     leases)
       vmpooler_leases
     ;;
     authorize)
       vmpooler_authorize "${1}"
+    ;;
+    ssh)
+      vmpooler_ssh ${@}
+    ;;
+    scp)
+      vmpooler_scp ${@}
     ;;
     *) echo ${@} ;;
   esac

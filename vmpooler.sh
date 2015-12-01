@@ -360,6 +360,8 @@ function vmpooler_authorize {
     return 1
   fi
 
+  echo "${token}"
+
   write_vmpooler_token_to_file "${token}"
   if [[ $? != 0 ]]; then
     echo "unable to write new token value to disk" >&2
@@ -454,7 +456,18 @@ function vmpooler {
     scp)
       vmpooler_scp ${@}
     ;;
-    *) echo ${@} ;;
+    *)
+      echo "Please use one of the following commands:"
+      echo "  checkout <platform tag>"
+      echo "  destroy <lease name>"
+      echo "  status <lease name>"
+      echo "  lifespan <lease name> <duration>"
+      echo "  leases"
+      echo "  authorize <ldap username>"
+      echo "  ssh <lease name>"
+      echo "  scp <file(s)> <lease name>:<path>"
+      return 0
+    ;;
   esac
   return $?
 }

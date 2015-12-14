@@ -425,6 +425,28 @@ function vmpooler_scp {
   scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
 }
 
+function help_screen {
+  echo "Please use one of the following commands:"
+  echo
+  echo "Pooler VM Management:"
+  echo "  checkout <platform tag>"
+  echo "  destroy <lease name>"
+  echo "  lifespan <lease name> <duration>"
+  echo "  status <lease name>"
+  echo "  leases"
+  echo
+  echo "Pooler VM Connectivity:"
+  echo "  ssh <lease name>"
+  echo "  scp <file(s)> <lease name>:<path>"
+  echo
+  echo "Pooler Auth Token Management:"
+  echo "  authorize <ldap username>"
+  echo "  deauthorize <token>"
+  echo "  tokens <ldap username>"
+
+  return 0
+}
+
 function vmpooler {
   local action="${1:-UNDEFINED}"
   shift
@@ -456,17 +478,11 @@ function vmpooler {
     scp)
       vmpooler_scp ${@}
     ;;
+    help)
+      help_screen
+    ;;
     *)
-      echo "Please use one of the following commands:"
-      echo "  checkout <platform tag>"
-      echo "  destroy <lease name>"
-      echo "  status <lease name>"
-      echo "  lifespan <lease name> <duration>"
-      echo "  leases"
-      echo "  authorize <ldap username>"
-      echo "  ssh <lease name>"
-      echo "  scp <file(s)> <lease name>:<path>"
-      return 0
+      help_screen
     ;;
   esac
   return $?

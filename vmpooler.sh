@@ -456,7 +456,30 @@ help_screen() {
   echo "  authorize <ldap username>"
   echo "  deauthorize <token>"
   echo "  tokens <ldap username>"
+  echo
+  echo "Developmental metadata:"
+  echo "  todo"
 
+  return 0
+}
+
+todo() {
+  local todos=(
+    "list all assigned tokens"
+    "allow token deletion"
+    "improve VM lifespan management"
+    "display VM status (active, destroyed) in leases"
+    "normalize & refactor curl commands out of functions"
+    "normalize & refactor API endpoints out of functions"
+    "write a README"
+    "write a man page"
+    "bash completion"
+    "color output"
+  )
+
+  for todo in "${todos[@]}"; do
+    echo "- ${todo}"
+  done
   return 0
 }
 
@@ -493,6 +516,9 @@ vmpooler() {
     ;;
     scp)
       vmpooler_scp "${@}"
+    ;;
+    todo)
+      todo
     ;;
     commands)
       echo "tags checkout destroy status lifespan leases authorize ssh scp help"

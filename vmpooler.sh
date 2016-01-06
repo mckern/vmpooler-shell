@@ -472,6 +472,7 @@ todo() {
     "display VM status (active, destroyed) in leases"
     "normalize & refactor curl commands out of functions"
     "normalize & refactor API endpoints out of functions"
+    "dependency checking for basename and jq"
     "write a README"
     "write a man page"
     "bash completion"

@@ -4,7 +4,7 @@ if [[ ${DEBUG} ]]; then
   set -x
 fi
 
-function cleanup {
+cleanup() {
   set +x
 }
 
@@ -25,7 +25,7 @@ mkdir -p "${__lease_dir}"
 
 ### Utilities
 
-function echo_parse_vm_hostname {
+echo_parse_vm_hostname() {
   local json="${1:-UNDEFINED}"
   local platform_tag="${2:-UNDEFINED}"
 
@@ -43,7 +43,7 @@ function echo_parse_vm_hostname {
   return $?
 }
 
-function echo_parse_vm_domainname {
+echo_parse_vm_domainname() {
   local json="${1:-UNDEFINED}"
 
   if [[ ${json} == UNDEFINED ]]; then
@@ -55,7 +55,7 @@ function echo_parse_vm_domainname {
   return $?
 }
 
-function echo_parse_vm_pooler_token {
+echo_parse_vm_pooler_token() {
   local json="${1:-UNDEFINED}"
   local token
 
@@ -68,7 +68,7 @@ function echo_parse_vm_pooler_token {
   return $?
 }
 
-function echo_lease_path {
+echo_lease_path() {
   local lease="${1:-UNDEFINED}"
 
   if [[ ${lease} == UNDEFINED ]]; then
@@ -85,7 +85,7 @@ function echo_lease_path {
   return $?
 }
 
-function parse_config {
+parse_config() {
   if [[ ! -f ${__config_file} ]]; then
     echo "cannot find config file ${__config_file}; unable to parse a nonexistant or unreadable file" >&2
     return 1
@@ -106,7 +106,7 @@ function parse_config {
   return $?
 }
 
-function create_vm_lease {
+create_vm_lease() {
   local lease="${1:-UNDEFINED}"
   local lease_path
 
@@ -130,7 +130,7 @@ function create_vm_lease {
   return $?
 }
 
-function write_vm_lease_details {
+write_vm_lease_details() {
   local vm_hostname="${1:-UNDEFINED}"
   local platform="${2:-UNDEFINED}"
   local domain="${3:-UNDEFINED}"
@@ -174,7 +174,7 @@ function write_vm_lease_details {
   return 0
 }
 
-function write_vmpooler_token_to_file {
+write_vmpooler_token_to_file() {
   local token="${1:-UNDEFINED}"
   local new_config
 
@@ -202,7 +202,7 @@ function write_vmpooler_token_to_file {
   return 0
 }
 
-function destroy_vm_lease {
+destroy_vm_lease() {
   local lease="${1:-UNDEFINED}"
   local lease_path
 
@@ -227,7 +227,7 @@ function destroy_vm_lease {
   return $?
 }
 
-function test_vmpooler_token {
+test_vmpooler_token() {
   if [[ -z $VMPOOLER_TOKEN || $VMPOOLER_TOKEN == UNDEFINED ]]; then
     echo "no VM Pooler token found" >&2
     return 1
@@ -237,7 +237,7 @@ function test_vmpooler_token {
 
 ### Pooler functions
 
-function vmpooler_checkout {
+vmpooler_checkout() {
   local platform_tag="${1:-UNDEFINED}"
   local json_output
   local vm_hostname
@@ -289,7 +289,7 @@ function vmpooler_checkout {
   return 0
 }
 
-function vmpooler_destroy {
+vmpooler_destroy() {
   local vm_hostname="${1:-UNDEFINED}"
   local lease_path
 
@@ -323,7 +323,7 @@ function vmpooler_destroy {
   return 0
 }
 
-function vmpooler_leases {
+vmpooler_leases() {
   if [ ! -d "${__lease_dir}" ]; then
     echo "no lease directory found" >&2
     return 1
@@ -338,7 +338,7 @@ function vmpooler_leases {
   return 0
 }
 
-function vmpooler_authorize {
+vmpooler_authorize() {
   local user="${1:-UNDEFINED}"
   local json_output
   local token
@@ -373,7 +373,7 @@ function vmpooler_authorize {
 
 ### Still in progress
 
-function vmpooler_tags {
+vmpooler_tags() {
   curl \
     --insecure \
     --silent \
@@ -383,7 +383,7 @@ function vmpooler_tags {
   return $?
 }
 
-function vmpooler_status {
+vmpooler_status() {
   local host="${1:-UNDEFINED}"
 
   if [[ ${host} == UNDEFINED ]]; then
@@ -399,7 +399,7 @@ function vmpooler_status {
   return $?
 }
 
-function vmpooler_lifespan {
+vmpooler_lifespan() {
   local host="${1:-UNDEFINED}"
   local lifespan="${2:-UNDEFINED}"
 
@@ -427,15 +427,15 @@ function vmpooler_lifespan {
   return $?
 }
 
-function vmpooler_ssh {
+vmpooler_ssh() {
   ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
 }
 
-function vmpooler_scp {
+vmpooler_scp() {
   scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
 }
 
-function help_screen {
+help_screen() {
   echo "Please use one of the following commands:"
   echo
   echo "Pooler Platform Tags:"
@@ -460,7 +460,7 @@ function help_screen {
   return 0
 }
 
-function vmpooler {
+vmpooler() {
   local action="${1:-UNDEFINED}"
   shift
 

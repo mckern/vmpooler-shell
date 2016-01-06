@@ -465,6 +465,7 @@ help_screen() {
 
 todo() {
   local todos=(
+    "VM tagging"
     "list all assigned tokens"
     "allow token deletion"
     "improve VM lifespan management"

@@ -373,7 +373,7 @@ vmpooler_authorize() {
 
 ### Still in progress
 
-vmpooler_tags() {
+vmpooler_platforms() {
   curl \
     --insecure \
     --silent \
@@ -438,8 +438,8 @@ vmpooler_scp() {
 help_screen() {
   echo "Please use one of the following commands:"
   echo
-  echo "Pooler Platform Tags:"
-  echo "  tags"
+  echo "List Pooler Platforms:"
+  echo "  platforms"
   echo
   echo "Pooler VM Management:"
   echo "  checkout <platform tag>"
@@ -492,8 +492,8 @@ vmpooler() {
   parse_config
 
   case "${action}" in
-    tags)
-      vmpooler_tags
+    platforms)
+      vmpooler_platforms
     ;;
     checkout)
       vmpooler_checkout "${1}"
@@ -523,7 +523,7 @@ vmpooler() {
       todo
     ;;
     commands)
-      echo "tags checkout destroy status lifespan leases authorize ssh scp help"
+      echo "platforms checkout destroy status lifespan leases authorize ssh scp help"
     ;;
     *)
       help_screen

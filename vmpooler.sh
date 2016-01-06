@@ -373,6 +373,16 @@ function vmpooler_authorize {
 
 ### Still in progress
 
+function vmpooler_tags {
+  curl \
+    --insecure \
+    --silent \
+    --header "X-AUTH-TOKEN:${VMPOOLER_TOKEN}" \
+    --url "${VMPOOLER_URL}/vm/" |
+    jq --exit-status --raw-output ".[]"
+  return $?
+}
+
 function vmpooler_status {
   local host="${1:-UNDEFINED}"
 
@@ -428,6 +438,9 @@ function vmpooler_scp {
 function help_screen {
   echo "Please use one of the following commands:"
   echo
+  echo "Pooler Platform Tags:"
+  echo "  tags"
+  echo
   echo "Pooler VM Management:"
   echo "  checkout <platform tag>"
   echo "  destroy <lease name>"
@@ -454,6 +467,9 @@ function vmpooler {
   parse_config
 
   case "${action}" in
+    tags)
+      vmpooler_tags
+    ;;
     checkout)
       vmpooler_checkout "${1}"
     ;;
@@ -478,8 +494,8 @@ function vmpooler {
     scp)
       vmpooler_scp ${@}
     ;;
-    help)
-      help_screen
+    commands)
+      echo "tags checkout destroy status lifespan leases authorize ssh scp help"
     ;;
     *)
       help_screen

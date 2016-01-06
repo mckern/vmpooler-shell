@@ -428,11 +428,11 @@ vmpooler_lifespan() {
 }
 
 vmpooler_ssh() {
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
+  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa "${@}"
 }
 
 vmpooler_scp() {
-  scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa ${@}
+  scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa "${@}"
 }
 
 help_screen() {
@@ -480,7 +480,7 @@ vmpooler() {
       vmpooler_status "${1}"
     ;;
     lifespan)
-      vmpooler_lifespan ${@}
+      vmpooler_lifespan "${@}"
     ;;
     leases)
       vmpooler_leases
@@ -489,10 +489,10 @@ vmpooler() {
       vmpooler_authorize "${1}"
     ;;
     ssh)
-      vmpooler_ssh ${@}
+      vmpooler_ssh "${@}"
     ;;
     scp)
-      vmpooler_scp ${@}
+      vmpooler_scp "${@}"
     ;;
     commands)
       echo "tags checkout destroy status lifespan leases authorize ssh scp help"

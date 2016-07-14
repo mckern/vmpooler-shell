@@ -2,7 +2,8 @@
 
 ### WHY WOULD YOU DO THAT?!
 
-* Minimal dependencies (a single binary, used for parsing JSON)
+* Minimal dependencies
+  * `basename` and `jq` (`basename` could probably even be refactored away)
 * Fun
 * Profit
 

@@ -19,6 +19,8 @@ __lease_dir="${__config_file_dir}/leases"
 # Respect these environment variables
 VMPOOLER_TOKEN="${VMPOOLER_TOKEN:-UNDEFINED}"
 VMPOOLER_URL="${VMPOOLER_URL:-UNDEFINED}"
+VMPOOLER_SSH_KEY="${VMPOOLER_SSH_KEY:-UNDEFINED}"
+VMPOOLER_SSH_OPTIONS="${VMPOOLER_SSH_OPTIONS:-UNDEFINED}"
 
 # Create a lease directory
 mkdir -p "${__lease_dir}"
@@ -92,16 +94,48 @@ parse_config() {
   fi
 
   if [[ ${VMPOOLER_TOKEN} == UNDEFINED ]]; then
-    VMPOOLER_TOKEN="$(jq --exit-status --raw-output ".vmpooler_token"  "${__config_file}")"
+    VMPOOLER_TOKEN="$(jq --exit-status --raw-output ".vmpooler_token // empty"  "${__config_file}")"
   else
-    echo "using environment variable VMPOOLER_TOKEN for access token"
+    echo -e "- using environment variable VMPOOLER_TOKEN for access token\n"
   fi
 
   if [[ ${VMPOOLER_URL} == UNDEFINED ]]; then
-    VMPOOLER_URL="$(jq --exit-status --raw-output ".vmpooler_url"  "${__config_file}")"
+    VMPOOLER_URL="$(jq --exit-status --raw-output ".vmpooler_url // empty"  "${__config_file}")"
   else
-    echo "using environment variable VMPOOLER_URL to connect to VM Pooler API"
+    echo -e "- using environment variable VMPOOLER_URL to connect to VM Pooler API\n"
   fi
+
+  if [[ ${VMPOOLER_SSH_KEY} == UNDEFINED ]]; then
+    VMPOOLER_SSH_KEY="$(jq --exit-status --raw-output ".vmpooler_ssh_key // empty"  "${__config_file}")"
+  else
+    echo -e "- using environment variable VMPOOLER_SSH_KEY to connect to leased clients\n"
+  fi
+
+  if [[ ${VMPOOLER_SSH_OPTIONS} == UNDEFINED ]]; then
+    VMPOOLER_SSH_OPTIONS="$(jq --exit-status --raw-output ".vmpooler_ssh_options // empty"  "${__config_file}")"
+  else
+    echo -e "- using environment variable VMPOOLER_SSH_OPTIONS to connect to leased clients\n"
+  fi
+
+  return $?
+}
+
+print_config(){
+  [[ -n "${VMPOOLER_TOKEN}" ]] &&
+    echo "VMPOOLER_TOKEN: ${VMPOOLER_TOKEN}" ||
+    echo "VMPOOLER_TOKEN: undefined - use an environment variable?"
+
+  [[ -n "${VMPOOLER_URL}" ]] &&
+    echo "VMPOOLER_URL: ${VMPOOLER_URL}" ||
+    echo "VMPOOLER_URL: undefined - use an environment variable?"
+
+  [[ -n "${VMPOOLER_SSH_KEY}" ]] &&
+    echo "VMPOOLER_SSH_KEY: ${VMPOOLER_SSH_KEY}" ||
+    echo "VMPOOLER_SSH_KEY: undefined - use an environment variable?"
+
+  [[ -n "${VMPOOLER_SSH_OPTIONS}" ]] &&
+    echo "VMPOOLER_SSH_OPTIONS: ${VMPOOLER_SSH_OPTIONS}" ||
+    echo "VMPOOLER_SSH_OPTIONS: undefined - use an environment variable?"
 
   return $?
 }
@@ -371,7 +405,8 @@ vmpooler_authorize() {
   return 0
 }
 
-### Still in progress
+### Still in progress; these functions probably need more rigor/abstraction.
+###   Metaprogramming in Bash is still considered gauche, right?
 
 vmpooler_platforms() {
   curl \
@@ -428,12 +463,31 @@ vmpooler_lifespan() {
 }
 
 vmpooler_ssh() {
-  ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa "${@}"
+  VMPOOLER_SSH_OPTIONS="-o StrictHostKeyChecking=no ${VMPOOLER_SSH_OPTIONS}"
+  VMPOOLER_SSH_OPTIONS="-o UserKnownHostsFile=/dev/null ${VMPOOLER_SSH_OPTIONS}"
+
+  if [[ -n "${VMPOOLER_SSH_KEY}" ]]; then
+    VMPOOLER_SSH_OPTIONS="${VMPOOLER_SSH_OPTIONS} -i ${VMPOOLER_SSH_KEY}"
+  fi
+
+  IFS=' ' read -r -a __options <<< "${VMPOOLER_SSH_OPTIONS}"
+  ssh "${__options[@]}" "${@}"
 }
 
 vmpooler_scp() {
-  scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i ~/.ssh/jenkins_rsa "${@}"
+  VMPOOLER_SSH_OPTIONS="-o StrictHostKeyChecking=no ${VMPOOLER_SSH_OPTIONS}"
+  VMPOOLER_SSH_OPTIONS="-o UserKnownHostsFile=/dev/null ${VMPOOLER_SSH_OPTIONS}"
+
+  if [[ -n "${VMPOOLER_SSH_KEY}" ]]; then
+    VMPOOLER_SSH_OPTIONS="${VMPOOLER_SSH_OPTIONS} -i ${VMPOOLER_SSH_KEY}"
+  fi
+
+  IFS=' ' read -r -a __options <<< "${VMPOOLER_SSH_OPTIONS}"
+  scp "${__options[@]}" "${@}"
 }
+
+### User interface!
+###   We has it!
 
 help_screen() {
   echo "Please use one of the following commands:"
@@ -457,6 +511,9 @@ help_screen() {
   echo "  deauthorize <token>"
   echo "  tokens <ldap username>"
   echo
+  echo "Client Configuration:"
+  echo "  config"
+  echo
   echo "Developmental metadata:"
   echo "  todo"
 
@@ -473,10 +530,14 @@ todo() {
     "normalize & refactor curl commands out of functions"
     "normalize & refactor API endpoints out of functions"
     "dependency checking for basename and jq"
-    "write a README"
+    "improve the README"
     "write a man page"
     "bash completion"
-    "color output"
+    "color output?"
+    "create config file"
+    "edit config file values"
+    "command line flags for subcommands"
+    "refactor output handling; less raw 'echo' calls"
   )
 
   for todo in "${todos[@]}"; do
@@ -518,6 +579,9 @@ vmpooler() {
     ;;
     scp)
       vmpooler_scp "${@}"
+    ;;
+    config)
+      print_config
     ;;
     todo)
       todo

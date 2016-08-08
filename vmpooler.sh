@@ -27,6 +27,35 @@ mkdir -p "${__lease_dir}"
 
 ### Utilities
 
+echo_downcase(){
+  local arg="${1:-UNDEFINED}"
+
+  if [[ ${arg} == UNDEFINED ]]; then
+    echo "please provide a string to convert to lowercase" >&2
+    return 1
+  fi
+
+  echo "${arg}" | tr '[:upper:]' '[:lower:]'
+  return $?
+}
+
+echo_map_legacy_name(){
+  local platform="${1:-UNDEFINED}"
+
+  if [[ ${platform} == UNDEFINED ]]; then
+    echo "please provide a platform name" >&2
+    return 1
+  fi
+
+  if [[ ${platform} =~ -amd64$ ]]; then
+    # We're using sed instead of string substitution because the
+    # regex should be anchored for predictability.
+    # shellcheck disable=SC2001
+    echo "${platform}" | sed -e 's/-amd64$/-x86_64/g'
+  fi
+  return $?
+}
+
 echo_parse_vm_hostname() {
   local json="${1:-UNDEFINED}"
   local platform_tag="${2:-UNDEFINED}"
@@ -41,7 +70,7 @@ echo_parse_vm_hostname() {
     return 1
   fi
 
-  echo "${json[@]}" | jq --exit-status --raw-output  ".\"${platform_tag}\".hostname | select(. == null | not)"
+  echo "${json[@]}" | jq --exit-status --raw-output  ".[] | .. | .hostname? | select(. == null | not)"
   return $?
 }
 
@@ -471,6 +500,7 @@ vmpooler_ssh() {
   fi
 
   IFS=' ' read -r -a __options <<< "${VMPOOLER_SSH_OPTIONS}"
+  # shellcheck disable=SC2029
   ssh "${__options[@]}" "${@}"
 }
 
@@ -531,7 +561,7 @@ todo() {
     "normalize & refactor API endpoints out of functions"
     "dependency checking for basename and jq"
     "improve the README"
-    "write a man page"
+    "write a man page?"
     "bash completion"
     "color output?"
     "create config file"
@@ -557,13 +587,13 @@ vmpooler() {
       vmpooler_platforms
     ;;
     checkout)
-      vmpooler_checkout "${1}"
+      vmpooler_checkout "$(echo_downcase "${1}")"
     ;;
     destroy)
-      vmpooler_destroy "${1}"
+      vmpooler_destroy "$(echo_downcase "${1}")"
     ;;
     status)
-      vmpooler_status "${1}"
+      vmpooler_status "$(echo_downcase "${1}")"
     ;;
     lifespan)
       vmpooler_lifespan "${@}"

@@ -4,7 +4,7 @@ if [[ ${DEBUG} ]]; then
   set -x
 fi
 
-cleanup() {
+cleanup(){
   set +x
 }
 
@@ -57,7 +57,7 @@ echo_map_legacy_name(){
   return $?
 }
 
-echo_parse_vm_hostname() {
+echo_parse_vm_hostname(){
   local json="${1:-UNDEFINED}"
   local platform_tag="${2:-UNDEFINED}"
 
@@ -71,11 +71,11 @@ echo_parse_vm_hostname() {
     return 1
   fi
 
-  echo "${json[@]}" | jq --exit-status --raw-output  ".[] | .. | .hostname? | select(. == null | not)"
+  echo "${json[@]}" | jq --exit-status --raw-output ".[] | .. | .hostname? | select(. == null | not)"
   return $?
 }
 
-echo_parse_vm_domainname() {
+echo_parse_vm_domainname(){
   local json="${1:-UNDEFINED}"
 
   if [[ ${json} == UNDEFINED ]]; then
@@ -83,11 +83,11 @@ echo_parse_vm_domainname() {
     return 1
   fi
 
-  echo "${json[@]}" | jq --exit-status --raw-output  ".domain | select(. == null | not)"
+  jq --exit-status --raw-output ".domain | select(. == null | not)" <<< "${json[@]}"
   return $?
 }
 
-echo_parse_vm_pooler_token() {
+echo_parse_vm_pooler_token(){
   local json="${1:-UNDEFINED}"
   local token
 
@@ -96,7 +96,7 @@ echo_parse_vm_pooler_token() {
     return 1
   fi
 
-  echo "${json[@]}" | jq --exit-status --raw-output  ".token | select(. == null | not)"
+  jq --exit-status --raw-output ".token | select(. == null | not)" <<< "${json[@]}"
   return $?
 }
 
@@ -131,7 +131,7 @@ echo_lease_path(){
   return $?
 }
 
-parse_config() {
+parse_config(){
   if [[ ! -f ${__config_file} ]]; then
     echo "cannot find config file ${__config_file}; unable to parse a nonexistant or unreadable file" >&2
     return 1
@@ -194,7 +194,7 @@ print_config(){
   return $?
 }
 
-create_vm_lease() {
+create_vm_lease(){
   local lease="${1:-UNDEFINED}"
   local lease_path
 
@@ -218,7 +218,7 @@ create_vm_lease() {
   return $?
 }
 
-write_vm_lease_details() {
+write_vm_lease_details(){
   local vm_hostname="${1:-UNDEFINED}"
   local platform="${2:-UNDEFINED}"
   local domain="${3:-UNDEFINED}"
@@ -262,7 +262,7 @@ write_vm_lease_details() {
   return 0
 }
 
-write_vmpooler_token_to_file() {
+write_vmpooler_token_to_file(){
   local token="${1:-UNDEFINED}"
   local new_config
 
@@ -290,7 +290,7 @@ write_vmpooler_token_to_file() {
   return 0
 }
 
-destroy_vm_lease() {
+destroy_vm_lease(){
   local lease="${1:-UNDEFINED}"
   local lease_path
 
@@ -315,7 +315,7 @@ destroy_vm_lease() {
   return $?
 }
 
-test_vmpooler_token() {
+test_vmpooler_token(){
   if [[ -z $VMPOOLER_TOKEN || $VMPOOLER_TOKEN == UNDEFINED ]]; then
     echo "no VM Pooler token found" >&2
     return 1
@@ -325,7 +325,7 @@ test_vmpooler_token() {
 
 ### Pooler functions
 
-vmpooler_checkout() {
+vmpooler_checkout(){
   local platform_tag="${1:-UNDEFINED}"
   local json_output
   local vm_hostname
@@ -377,7 +377,7 @@ vmpooler_checkout() {
   return 0
 }
 
-vmpooler_destroy() {
+vmpooler_destroy(){
   local vm_hostname="${1:-UNDEFINED}"
   local lease_path
 
@@ -411,7 +411,7 @@ vmpooler_destroy() {
   return 0
 }
 
-vmpooler_leases() {
+vmpooler_leases(){
   if [ ! -d "${__lease_dir}" ]; then
     echo "no lease directory found" >&2
     return 1
@@ -426,7 +426,7 @@ vmpooler_leases() {
   return 0
 }
 
-vmpooler_authorize() {
+vmpooler_authorize(){
   local user="${1:-UNDEFINED}"
   local json_output
   local token
@@ -489,7 +489,7 @@ vmpooler_tokens(){
 ### Still in progress; these functions probably need more rigor/abstraction.
 ###   Metaprogramming in Bash is still considered gauche, right?
 
-vmpooler_platforms() {
+vmpooler_platforms(){
   curl \
     --insecure \
     --silent \
@@ -499,7 +499,7 @@ vmpooler_platforms() {
   return $?
 }
 
-vmpooler_status() {
+vmpooler_status(){
   local host="${1:-UNDEFINED}"
 
   if [[ ${host} == UNDEFINED ]]; then
@@ -515,7 +515,7 @@ vmpooler_status() {
   return $?
 }
 
-vmpooler_lifespan() {
+vmpooler_lifespan(){
   local host="${1:-UNDEFINED}"
   local lifespan="${2:-UNDEFINED}"
 
@@ -543,7 +543,7 @@ vmpooler_lifespan() {
   return $?
 }
 
-vmpooler_ssh() {
+vmpooler_ssh(){
   VMPOOLER_SSH_OPTIONS="-o StrictHostKeyChecking=no ${VMPOOLER_SSH_OPTIONS}"
   VMPOOLER_SSH_OPTIONS="-o UserKnownHostsFile=/dev/null ${VMPOOLER_SSH_OPTIONS}"
 
@@ -556,7 +556,7 @@ vmpooler_ssh() {
   ssh "${__options[@]}" "${@}"
 }
 
-vmpooler_scp() {
+vmpooler_scp(){
   VMPOOLER_SSH_OPTIONS="-o StrictHostKeyChecking=no ${VMPOOLER_SSH_OPTIONS}"
   VMPOOLER_SSH_OPTIONS="-o UserKnownHostsFile=/dev/null ${VMPOOLER_SSH_OPTIONS}"
 
@@ -571,7 +571,7 @@ vmpooler_scp() {
 ### User interface!
 ###   We has it!
 
-help_screen() {
+help_screen(){
   echo "Please use one of the following commands:"
   echo
   echo "List Pooler Platforms:"
@@ -602,7 +602,7 @@ help_screen() {
   return 0
 }
 
-todo() {
+todo(){
   local todos=(
     "VM tagging"
     "list all assigned tokens"
@@ -628,7 +628,7 @@ todo() {
   return 0
 }
 
-vmpooler() {
+vmpooler(){
   local action="${1:-UNDEFINED}"
   shift
 

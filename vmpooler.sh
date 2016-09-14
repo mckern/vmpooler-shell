@@ -19,6 +19,7 @@ __lease_dir="${__config_file_dir}/leases"
 # Respect these environment variables
 VMPOOLER_TOKEN="${VMPOOLER_TOKEN:-UNDEFINED}"
 VMPOOLER_URL="${VMPOOLER_URL:-UNDEFINED}"
+VMPOOLER_USER="${VMPOOLER_USER:-UNDEFINED}"
 VMPOOLER_SSH_KEY="${VMPOOLER_SSH_KEY:-UNDEFINED}"
 VMPOOLER_SSH_OPTIONS="${VMPOOLER_SSH_OPTIONS:-UNDEFINED}"
 
@@ -99,7 +100,21 @@ echo_parse_vm_pooler_token() {
   return $?
 }
 
-echo_lease_path() {
+echo_parse_vm_pooler_tokens(){
+  local json="${1:-UNDEFINED}"
+  local tokens
+  local intermediate
+
+  if [[ ${json} == UNDEFINED ]]; then
+    echo "please provide JSON output to parse" >&2
+    return 1
+  fi
+
+  jq --exit-status --raw-output "del(.ok) | keys[] | select(. == null | not)" <<< "${json[@]}"
+  return $?
+}
+
+echo_lease_path(){
   local lease="${1:-UNDEFINED}"
 
   if [[ ${lease} == UNDEFINED ]]; then
@@ -134,6 +149,12 @@ parse_config() {
     echo -e "- using environment variable VMPOOLER_URL to connect to VM Pooler API\n"
   fi
 
+  if [[ ${VMPOOLER_USER} == UNDEFINED ]]; then
+    VMPOOLER_USER="$(jq --exit-status --raw-output ".vmpooler_user // empty"  "${__config_file}")"
+  else
+    echo -e "- using environment variable VMPOOLER_USER to connect to VM Pooler API\n"
+  fi
+
   if [[ ${VMPOOLER_SSH_KEY} == UNDEFINED ]]; then
     VMPOOLER_SSH_KEY="$(jq --exit-status --raw-output ".vmpooler_ssh_key // empty"  "${__config_file}")"
   else
@@ -157,6 +178,10 @@ print_config(){
   [[ -n "${VMPOOLER_URL}" ]] &&
     echo "VMPOOLER_URL: ${VMPOOLER_URL}" ||
     echo "VMPOOLER_URL: undefined - use an environment variable?"
+
+  [[ -n "${VMPOOLER_USER}" ]] &&
+    echo "VMPOOLER_USER: ${VMPOOLER_USER}" ||
+    echo "VMPOOLER_USER: undefined - use an environment variable?"
 
   [[ -n "${VMPOOLER_SSH_KEY}" ]] &&
     echo "VMPOOLER_SSH_KEY: ${VMPOOLER_SSH_KEY}" ||
@@ -434,6 +459,33 @@ vmpooler_authorize() {
   return 0
 }
 
+vmpooler_tokens(){
+  local user="${1:-UNDEFINED}"
+  local json_output
+  local token
+
+  if [[ ${user} == UNDEFINED ]]; then
+    echo "please provide the LDAP name to display tokens for" >&2
+    return 1
+  fi
+
+  json_output="$(curl --silent --insecure --request GET --user "${user}" --url "${VMPOOLER_URL}/token")"
+  if [[ $? != 0 ]]; then
+    echo "unable to list tokens for user '${user}'; authorized?" >&2
+    return 1
+  fi
+
+  tokens="$(echo_parse_vm_pooler_tokens "${json_output}")"
+  if [[ $? != 0 ]]; then
+    echo "unable to parse token output" >&2
+    return 1
+  fi
+
+  echo "${tokens[@]}"
+
+  return 0
+}
+
 ### Still in progress; these functions probably need more rigor/abstraction.
 ###   Metaprogramming in Bash is still considered gauche, right?
 
@@ -602,7 +654,10 @@ vmpooler() {
       vmpooler_leases
     ;;
     authorize)
-      vmpooler_authorize "${1}"
+      vmpooler_authorize "${1:-"${vmpooler_user}"}"
+    ;;
+    tokens)
+      vmpooler_tokens "${1:-"${VMPOOLER_USER}"}"
     ;;
     ssh)
       vmpooler_ssh "${@}"
